@@ -187,8 +187,7 @@ const addProperty = function(property) {
   
   for (const key in property) {
     if (key === 'parking_spaces' || key === 'number_of_bathrooms' || key === 'number_of_bedrooms' || key === 'owner_id') {
-      let convertedValue;
-      convertedValue = Number(property[key]);
+      let convertedValue = Number(property[key]);
       queryParams.push(convertedValue);
       queryAttributes.push(key);
     } else {
