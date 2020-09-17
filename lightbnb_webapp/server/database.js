@@ -9,7 +9,6 @@ const pool = new Pool({
 
 
 
-const properties = require('./json/properties.json');
 /// Users
 
 /**
@@ -181,10 +180,33 @@ exports.getAllProperties = getAllProperties;
  * @param {{}} property An object containing all of the property details.
  * @return {Promise<{}>} A promise to the property.
  */
+
 const addProperty = function(property) {
-  const propertyId = Object.keys(properties).length + 1;
-  property.id = propertyId;
-  properties[propertyId] = property;
-  return Promise.resolve(property);
+  const queryParams = [];
+  const queryAttributes = [];
+  
+  for (const key in property) {
+    if (key === 'parking_spaces' || key === 'number_of_bathrooms' || key === 'number_of_bedrooms' || key === 'owner_id') {
+      let convertedValue;
+      convertedValue = Number(property[key]);
+      queryParams.push(convertedValue);
+      queryAttributes.push(key);
+    } else {
+      queryParams.push(property[key]);
+      queryAttributes.push(key);
+    }
+  }
+
+  let columns = queryAttributes.join(', ');
+  let count = queryParams.map((value, index) => `$${index + 1}`).join(', ');
+  const queryString = `
+  INSERT INTO properties (${columns})
+  VALUES (${count})
+  RETURNING *`;
+
+  console.log(queryString, queryParams);
+
+  return pool.query(queryString, queryParams)
+    .then(res => res.rows);
 };
 exports.addProperty = addProperty;
