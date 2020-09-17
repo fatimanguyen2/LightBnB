@@ -10,8 +10,6 @@ const pool = new Pool({
 
 
 const properties = require('./json/properties.json');
-const users = require('./json/users.json');
-
 /// Users
 
 /**
@@ -31,7 +29,7 @@ const getUserWithEmail = function(email) {
       }
       return null;
     });
-}
+};
 exports.getUserWithEmail = getUserWithEmail;
 
 /**
@@ -45,7 +43,8 @@ const getUserWithId = function(id) {
           FROM users
           WHERE id = $1;`,
     values:[id],
-  }
+  };
+
   return pool
     .query(query)
     .then(res => {
@@ -54,7 +53,7 @@ const getUserWithId = function(id) {
       }
       return null;
     });
-}
+};
 exports.getUserWithId = getUserWithId;
 
 
@@ -69,10 +68,11 @@ const addUser =  function(user) {
           VALUES ($1, $2, $3)
           RETURNING *`,
     values:[user.name, user.email, user.password],
-  }
+  };
+
   return pool.query(query)
-            .then(res => res.rows[0]);
-}
+    .then(res => res.rows[0]);
+};
 exports.addUser = addUser;
 
 /// Reservations
@@ -82,7 +82,7 @@ exports.addUser = addUser;
  * @param {string} guest_id The id of the user.
  * @return {Promise<[{}]>} A promise to the reservations.
  */
-const getAllReservations = function(guest_id, limit = 10) {
+const getAllReservations = function(guest_id) {
   const query = {
     text: `SELECT properties.*, reservations.*, avg(rating) as average_rating
     FROM reservations
@@ -94,10 +94,10 @@ const getAllReservations = function(guest_id, limit = 10) {
     ORDER BY reservations.start_date
     LIMIT 10;`,
     values: [guest_id]
-  }
+  };
   return pool.query(query)
-      .then (res => res.rows);
-}
+    .then(res => res.rows);
+};
 exports.getAllReservations = getAllReservations;
 
 /// Properties
@@ -109,10 +109,69 @@ exports.getAllReservations = getAllReservations;
  * @return {Promise<[{}]>}  A promise to the properties.
  */
 const getAllProperties = (options, limit = 10) => {
-  return pool.query(`SELECT *
-              FROM properties
-              LIMIT $1`, [limit])
-      .then(res => res.rows);
+  // const optionKeys = Object.keys(options);
+  const queryParams = [];
+  let queryString = `SELECT properties.*, avg(property_reviews.rating) as average_rating
+    FROM properties
+    JOIN property_reviews ON properties.id = property_id `;
+
+  if (options.city) {
+    const res = options.city.slice(1);
+    queryParams.push(`%${res}%`);
+    queryString += `
+    WHERE city LIKE $${queryParams.length} `;
+  }
+  if (options.owner_id) {
+    queryParams.push(options.owner_id);
+    if (queryParams.length === 1) {
+      queryString += `
+      WHERE owner_id = $${queryParams.length} `;
+    } else {
+      queryString += `
+      AND owner_id = $${queryParams.length} `;
+    }
+  }
+
+  if (options.minimum_price_per_night) {
+    const res = Number(options.minimum_price_per_night * 100);
+    queryParams.push(res);
+    if (queryParams.length === 1) {
+      queryString += `
+      WHERE cost_per_night >= $${queryParams.length} `;
+    } else {
+      queryString += `
+      AND cost_per_night >= $${queryParams.length} `;
+    }
+  }
+
+  if (options.maximum_price_per_night) {
+    const res = Number(options.maximum_price_per_night * 100);
+    queryParams.push(res);
+    if (queryParams.length === 1) {
+      queryString += `
+      WHERE cost_per_night <= $${queryParams.length} `;
+    } else {
+      queryString += `
+      AND cost_per_night <= $${queryParams.length} `;
+    }
+  }
+
+  if (options.minimum_rating) {
+    const res = Number(options.minimum_rating);
+    queryParams.push(res);
+    queryString += `
+    GROUP BY properties.id
+    HAVING avg(property_reviews.rating) >= $${queryParams.length} `;
+  }
+
+  queryParams.push(limit);
+  queryString += `
+  ORDER BY cost_per_night
+  LIMIT $${queryParams.length};
+  `;
+
+  return pool.query(queryString, queryParams)
+    .then(res => res.rows);
 };
 exports.getAllProperties = getAllProperties;
 
@@ -127,5 +186,5 @@ const addProperty = function(property) {
   property.id = propertyId;
   properties[propertyId] = property;
   return Promise.resolve(property);
-}
+};
 exports.addProperty = addProperty;
